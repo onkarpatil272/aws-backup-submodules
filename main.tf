@@ -155,9 +155,8 @@ resource "aws_backup_selection" "ab_selection" {
   name         = each.value.selection_key
   plan_id      = aws_backup_plan.backup_plan[each.value.plan_key].id
 
-  resources     = try(each.value.selection.resources, null)
-  not_resources = try(each.value.selection.not_resources, null)
-
+  resources     = try(each.value.selection.resources, [])
+  not_resources = try(each.value.selection.not_resources, [])
   dynamic "selection_tag" {
     for_each = try(each.value.selection.selection_tags, [])
     content {
