@@ -34,12 +34,19 @@ resource "aws_backup_vault_notifications" "this" {
   backup_vault_events = each.value.backup_vault_events
 }
 resource "aws_cloudwatch_metric_alarm" "backup_alarm" {
-  for_each = var.notifications
+  for_each = var.enabled ? var.notifications : {}
 
   alarm_name          = "Backup_${each.key}_Alarm"
   comparison_operator = "GreaterThanOrEqualToThreshold"
   evaluation_periods  = 1
-  metric_name         = each.key == "backup_failure" ? "BackupJobsFailed" : "BackupMissedJobs"
+  metric_name = lookup(
+    {
+      backup_failure = "BackupJobsFailed"
+      backup_missed  = "BackupMissedJobs"
+    },
+    each.key,
+    "BackupJobsFailed"   # sensible default / or `error`
+  )
   namespace           = "AWS/Backup"
   period              = 300
   statistic           = "Sum"
