@@ -3,70 +3,17 @@ data "aws_kms_key" "backup" {
   key_id = "alias/aws/backup"
 }
 
-locals {
-  should_create_vault       = var.enabled && var.vault_name != null
-  should_create_lock        = local.should_create_vault && var.locked
-  should_create_legacy_plan = var.enabled && length(var.plans) == 0 && length(var.rules) > 0
-
-  check_retention_days        = var.locked ? (
-    var.min_retention_days != null && var.max_retention_days != null && var.min_retention_days <= var.max_retention_days
-  ) : true
-
-  processed_rules = [for rule in var.rules : merge(rule, {
-    lifecycle = merge(
-      {
-        cold_storage_after = var.default_lifecycle_cold_storage_after_days
-        delete_after       = var.default_lifecycle_delete_after_days
-      },
-      try(rule.lifecycle, {})
-    )
-  })]
-
-  # Create legacy plan if needed
-  legacy_plan = local.should_create_legacy_plan ? [{
-    name       = "legacy-backup-plan"
-    rules      = local.processed_rules
-    selections = var.selections
-  }] : []
-
-  # Combine legacy and explicit plans
-  all_plans = concat(var.plans, local.legacy_plan)
-
-  plans_map = { for idx, plan in local.all_plans :
-    plan.name != null ? plan.name : "plan-${idx}" => {
-      name       = plan.name != null ? plan.name : "plan-${idx}"
-      rules      = plan.rules
-      selections = try(plan.selections, {})
-    }
-  }
-
-  plan_selections_map = merge([
-    for plan_name, plan in local.plans_map :
-    { for sel_name, selection in plan.selections :
-      "${plan_name}-${sel_name}" => {
-        plan_key      = plan_name
-        selection_key = sel_name
-        selection     = selection
-      }
-    }
-  ]...)
-
-
-
-  kms_key_arn = coalesce(var.kms_key_arn, try(data.aws_kms_key.backup[0].arn, null))
-
-
-}
 
 resource "aws_backup_vault" "backup_vault" {
   for_each   = local.should_create_vault ? { (var.vault_name) = var.vault_name } : {}
   name        = each.value
   kms_key_arn = local.kms_key_arn
-  tags        = var.vault_tags
+  tags = local.vault_tags
 }
 
 resource "aws_backup_vault_lock_configuration" "ab_vault_lock" {
-  for_each            = local.should_create_lock && local.check_retention_days ? { (var.vault_name) = var.vault_name } : {}
+  for_each = local.should_create_lock ? { (var.vault_name) = var.vault_name } : {}
+
   backup_vault_name   = each.value
   min_retention_days  = var.min_retention_days
   max_retention_days  = var.max_retention_days
@@ -114,7 +61,7 @@ resource "aws_backup_plan" "backup_plan" {
       }
     }
   }
-  tags = var.backup_plan_tags
+  tags = local.backup_plan_tags
 }
 
 resource "aws_backup_selection" "ab_selection" {

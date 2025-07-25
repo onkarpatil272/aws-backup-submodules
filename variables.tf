@@ -27,27 +27,26 @@ variable "locked" {
 }
 
 variable "min_retention_days" {
-  description = "Minimum retention period in days for Vault Lock"
+  description = "Minimum number of days to retain backups"
   type        = number
   default     = null
 
   validation {
-    condition     = var.min_retention_days == null || can(var.min_retention_days >= 1 && var.min_retention_days <= 36500)
-    error_message = "The 'min_retention_days' must be between 1 and 36500 days (100 years) when specified."
+    condition     = var.min_retention_days == null || (var.min_retention_days >= 1 && var.min_retention_days <= 36500)
+    error_message = "min_retention_days must be between 1 and 36500 if specified."
   }
 }
 
 variable "max_retention_days" {
-  description = "Maximum retention period in days for Vault Lock"
+  description = "Maximum number of days to retain backups"
   type        = number
   default     = null
 
   validation {
-    condition     = var.max_retention_days == null || can(var.max_retention_days >= 1 && var.max_retention_days <= 36500)
-    error_message = "The 'max_retention_days' must be between 1 and 36500 days (100 years) when specified."
+    condition     = var.max_retention_days == null || (var.max_retention_days >= var.min_retention_days)
+    error_message = "max_retention_days must be greater than or equal to min_retention_days."
   }
 }
-
 variable "changeable_for_days" {
   description = "Number of days the vault lock can be changed"
   type        = number
@@ -233,4 +232,10 @@ variable "cloudwatch_alarms" {
   }))
   default = {}
 }
+variable "tags" {
+  description = "Base tags applied to all AWS Backup resources"
+  type        = map(string)
+  default     = {}
+}
+
 

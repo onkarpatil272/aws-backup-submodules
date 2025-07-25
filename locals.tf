@@ -3,9 +3,6 @@ locals {
   should_create_lock        = local.should_create_vault && var.locked
   should_create_legacy_plan = var.enabled && length(var.plans) == 0 && length(var.rules) > 0
 
-  check_retention_days        = var.locked ? (
-    var.min_retention_days != null && var.max_retention_days != null && var.min_retention_days <= var.max_retention_days
-  ) : true
 
   processed_rules = [for rule in var.rules : merge(rule, {
     lifecycle = merge(
