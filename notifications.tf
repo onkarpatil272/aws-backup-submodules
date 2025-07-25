@@ -45,12 +45,28 @@ resource "aws_cloudwatch_metric_alarm" "backup_alarm" {
       backup_missed  = "BackupMissedJobs"
     },
     each.key,
-    "BackupJobsFailed"   # sensible default / or `error`
+    "BackupJobsFailed"
   )
   namespace           = "AWS/Backup"
   period              = 300
   statistic           = "Sum"
   threshold           = 1
   alarm_description   = "Alarm for ${each.key} events"
+  alarm_actions       = [each.value.sns_topic_arn]
+}
+
+# Support custom CloudWatch alarms from var.cloudwatch_alarms
+resource "aws_cloudwatch_metric_alarm" "custom" {
+  for_each = var.enabled ? var.cloudwatch_alarms : {}
+
+  alarm_name          = each.value.alarm_name != null ? each.value.alarm_name : each.key
+  comparison_operator = each.value.comparison_operator
+  evaluation_periods  = each.value.evaluation_periods
+  metric_name         = each.value.metric_name
+  namespace           = each.value.namespace
+  period              = each.value.period
+  statistic           = each.value.statistic
+  threshold           = each.value.threshold
+  alarm_description   = each.value.alarm_description
   alarm_actions       = [each.value.sns_topic_arn]
 }
