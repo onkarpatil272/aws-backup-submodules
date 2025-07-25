@@ -43,7 +43,14 @@ locals {
     }
   ]...)
 
-  kms_key_arn = coalesce(var.kms_key_arn, try(data.aws_kms_key.backup[0].arn, null))
+  # Works for a single data source instance
+  kms_key_arn = coalesce(var.kms_key_arn, try(data.aws_kms_key.backup.arn, null))
+
+  # — OR — if the data source is behind `for_each`, pick the first/only element:
+  # kms_key_arn = coalesce(
+  #   var.kms_key_arn,
+  #   try(one(values(data.aws_kms_key.backup)).arn, null)
+  # )
 
     common_tags = merge(
     var.tags,
