@@ -10,8 +10,14 @@ variable "vault_name" {
   default     = null
 
   validation {
-    condition     = var.vault_name == null || can(regex("^[a-zA-Z0-9\\-_]{1,50}$", var.vault_name))
-    error_message = "The 'vault_name' must be 1-50 characters long and contain only alphanumeric characters, hyphens, and underscores."
+    condition = (
+      (!var.enabled) ||
+      (
+        var.vault_name != null &&
+        can(regex("^[a-zA-Z0-9\\-_]{1,50}$", var.vault_name))
+      )
+    )
+    error_message = "When the module is enabled you must provide a valid 'vault_name' (1-50 chars, alphanumeric, hyphen, underscore)."
   }
 }
 variable "vault_tags" {
