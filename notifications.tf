@@ -14,7 +14,9 @@ data "aws_iam_policy_document" "sns" {
       identifiers = ["backup.amazonaws.com"]
     }
 
-    resources = [each.value.sns_topic_arn]
+    resources = try(each.value.sns_topic_arn, null) != null
+      ? [each.value.sns_topic_arn]
+      : []
     sid       = "BackupPublishEvents"
   }
 }
