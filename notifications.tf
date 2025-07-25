@@ -33,27 +33,53 @@ resource "aws_backup_vault_notifications" "this" {
   sns_topic_arn       = each.value.sns_topic_arn
   backup_vault_events = each.value.backup_vault_events
 }
-resource "aws_cloudwatch_metric_alarm" "backup_alarm" {
-  for_each = var.enabled ? var.notifications : {}
+resource "aws_cloudwatch_metric_alarm" "backup_failure_alarm" {
+  for_each = var.enabled ? {
+    for k, v in var.notifications : k => v if try(v.enabled, false)
+  } : {}
 
-  alarm_name          = "Backup_${each.key}_Alarm"
+  # Define inline backup metric mapping
+  # Supports: BACKUP_JOB, COPY_JOB, RESTORE_JOB, REPLICATION_JOB
+  # Fails for unsupported keys
+  alarm_name          = "Backup-${each.key}-Failures"
   comparison_operator = "GreaterThanOrEqualToThreshold"
   evaluation_periods  = 1
   metric_name = lookup(
     {
-      backup_failure = "BackupJobsFailed"
-      backup_missed  = "BackupMissedJobs"
+      BACKUP_JOB      = "BackupJobsFailed"
+      COPY_JOB        = "CopyJobsFailed"
+      RESTORE_JOB     = "RestoreJobsFailed"
+      REPLICATION_JOB = "ReplicationJobsFailed"
     },
     each.key,
-    "BackupJobsFailed"
+    null
   )
-  namespace           = "AWS/Backup"
-  period              = 300
-  statistic           = "Sum"
-  threshold           = 1
-  alarm_description   = "Alarm for ${each.key} events"
-  alarm_actions       = [each.value.sns_topic_arn]
+  namespace         = "AWS/Backup"
+  period            = 300
+  statistic         = "Sum"
+  threshold         = 1
+  alarm_description = "Backup ${each.key} job failure alarm"
+
+  alarm_actions = try(each.value.sns_topic_arn, null) != null ? [each.value.sns_topic_arn] : []
+
+  lifecycle {
+    precondition {
+      condition     = lookup(
+        {
+          BACKUP_JOB      = "BackupJobsFailed"
+          COPY_JOB        = "CopyJobsFailed"
+          RESTORE_JOB     = "RestoreJobsFailed"
+          REPLICATION_JOB = "ReplicationJobsFailed"
+        },
+        each.key,
+        null
+      ) != null
+      error_message = "Unsupported notification key '${each.key}'. Please update the metric_name lookup map."
+    }
+  }
+  tags= local.common_tags
 }
+
 
 # Support custom CloudWatch alarms from var.cloudwatch_alarms
 resource "aws_cloudwatch_metric_alarm" "custom" {
