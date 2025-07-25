@@ -2,7 +2,8 @@
 # IAM Policy to allow AWS Backup to publish to SNS topics
 data "aws_iam_policy_document" "sns" {
   for_each = var.enabled && !var.notifications_disable_sns_policy ? {
-    for k, v in var.notifications : k => v if try(v.enabled, false)
+    for k, v in var.notifications :
+      k => v if try(v.enabled, false) && try(v.sns_topic_arn, null) != null
   } : {}
 
   statement {
