@@ -29,7 +29,7 @@ resource "aws_sns_topic_policy" "sns" {
 resource "aws_backup_vault_notifications" "this" {
   for_each = var.enabled ? var.notifications : {}
 
-  backup_vault_name   = var.vault_name != null ? aws_backup_vault.backup_vault[0].name : "Default"
+  backup_vault_name   = var.vault_name != null ? var.vault_name : "Default"
   sns_topic_arn       = each.value.sns_topic_arn
   backup_vault_events = each.value.backup_vault_events
 }
