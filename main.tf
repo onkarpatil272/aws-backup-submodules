@@ -127,34 +127,14 @@ resource "aws_backup_selection" "ab_selection" {
   resources     = length(try(each.value.selection.resources, [])) > 0 ? each.value.selection.resources : null
   not_resources = length(try(each.value.selection.not_resources, [])) > 0 ? each.value.selection.not_resources : null
 
-  dynamic "selection_tag" {
-    for_each = try(each.value.selection.selection_tags, [])
-    content {
-      type  = selection_tag.value.type
-      key   = selection_tag.value.key
-      value = selection_tag.value.value
-    }
+dynamic "selection_tag" {
+  for_each = try(each.value.selection.selection_tags, [])
+  content {
+    type  = selection_tag.value.type
+    key   = selection_tag.value.key
+    value = selection_tag.value.value
   }
-
-  dynamic "condition" {
-    for_each = try(each.value.selection.conditions, {})
-    content {
-      dynamic "string_equals" {
-        for_each = condition.value.type == "STRINGEQUALS" ? [condition.value] : []
-        content {
-          key   = condition.key
-          value = string_equals.value.value
-        }
-      }
-      dynamic "string_like" {
-        for_each = condition.value.type == "STRINGLIKE" ? [condition.value] : []
-        content {
-          key   = condition.key
-          value = string_like.value.value
-        }
-      }
-    }
-  }
+}
 
   depends_on = [aws_backup_plan.backup_plan]
 }
