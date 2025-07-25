@@ -64,7 +64,7 @@ locals {
   # KMS key ARN fallback logic
   kms_key_arn = coalesce(
     var.kms_key_arn,
-    try(data.aws_kms_key.backup.arn, null)
+    length(data.aws_kms_key.backup) > 0 ? data.aws_kms_key.backup[0].arn : null
   )
 
   # Tags

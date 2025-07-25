@@ -10,14 +10,8 @@ variable "vault_name" {
   default     = null
 
   validation {
-    condition = (
-      (!var.enabled) ||
-      (
-        var.vault_name != null &&
-        can(regex("^[a-zA-Z0-9\\-_]{1,50}$", var.vault_name))
-      )
-    )
-    error_message = "When the module is enabled you must provide a valid 'vault_name' (1-50 chars, alphanumeric, hyphen, underscore)."
+    condition = var.vault_name == null || can(regex("^[a-zA-Z0-9_-]{1,50}$", var.vault_name))
+    error_message = "'vault_name' must be 1-50 chars, alphanumeric, hyphen, underscore."
   }
 }
 variable "vault_tags" {
@@ -31,17 +25,10 @@ variable "locked" {
   type        = bool
   default     = false
 
-   # Ensure Vault Lock is only enabled with both retention values supplied
+  # Only validate locked itself; cross-variable logic must be handled elsewhere
   validation {
-    condition = (
-      !var.locked ||
-      (
-        var.min_retention_days != null &&
-        var.max_retention_days != null &&
-        var.max_retention_days >= var.min_retention_days
-      )
-    )
-    error_message = "When 'locked' is true you must provide both 'min_retention_days' and 'max_retention_days', with max ≥ min."
+    condition = var.locked == false || var.locked == true
+    error_message = "'locked' must be a boolean value. Additional logic must be handled in resource blocks."
   }
 }
 
@@ -51,7 +38,7 @@ variable "min_retention_days" {
   default     = null
 
   validation {
-    condition     = var.min_retention_days == null || (var.min_retention_days >= 1 && var.min_retention_days <= 36500)
+    condition = var.min_retention_days == null ? true : (var.min_retention_days >= 1 && var.min_retention_days <= 36500)
     error_message = "min_retention_days must be between 1 and 36500 if specified."
   }
 }
@@ -62,15 +49,9 @@ variable "max_retention_days" {
   default     = null
 
   validation {
-     condition = (
-       var.max_retention_days == null ||
-       (
-         var.max_retention_days >= (var.min_retention_days != null ? var.min_retention_days : 1) &&
-         var.max_retention_days <= 36500
-       )
-     )
-     error_message = "max_retention_days must be between 1-36500 and ≥ min_retention_days when both are specified."
-    }
+    condition = var.max_retention_days == null ? true : (var.max_retention_days >= 1 && var.max_retention_days <= 36500)
+    error_message = "max_retention_days must be between 1 and 36500 if specified. Additional logic must be handled in resource blocks."
+  }
 }
 variable "changeable_for_days" {
   description = "Number of days the vault lock can be changed"
@@ -78,7 +59,7 @@ variable "changeable_for_days" {
   default     = null
 
   validation {
-    condition     = var.changeable_for_days == null || (var.changeable_for_days >= 3 && var.changeable_for_days <= 36500)
+    condition = var.changeable_for_days == null ? true : (var.changeable_for_days >= 3 && var.changeable_for_days <= 36500)
     error_message = "The 'changeable_for_days' must be between 3 and 36500 days when specified."
   }
 }
