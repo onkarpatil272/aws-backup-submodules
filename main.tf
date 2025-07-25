@@ -46,7 +46,7 @@ resource "aws_backup_plan" "backup_plan" {
       }
 
       dynamic "copy_action" {
-        for_each = try(rule.value.copy_action, [])
+        for_each = local.enable_copy_action ? try(rule.value.copy_action, []) : []
         content {
           destination_vault_arn = copy_action.value.destination_vault_arn
 
@@ -74,14 +74,13 @@ resource "aws_backup_selection" "ab_selection" {
   resources     = length(try(each.value.selection.resources, [])) > 0 ? each.value.selection.resources : null
   not_resources = length(try(each.value.selection.not_resources, [])) > 0 ? each.value.selection.not_resources : null
 
-dynamic "selection_tag" {
-  for_each = try(each.value.selection.selection_tags, [])
-  content {
-    type  = selection_tag.value.type
-    key   = selection_tag.value.key
-    value = selection_tag.value.value
+  dynamic "selection_tag" {
+    for_each = try(each.value.selection.selection_tags, [])
+    content {
+      type  = selection_tag.value.type
+      key   = selection_tag.value.key
+      value = selection_tag.value.value
+    }
   }
-}
-
   depends_on = [aws_backup_plan.backup_plan]
 }

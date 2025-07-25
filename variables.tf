@@ -193,13 +193,13 @@ variable "default_lifecycle_delete_after_days" {
 }
 
 variable "notifications" {
-  description = "Backup vault notifications configuration"
-  type = map(object({
-    sns_topic_arn       = string
-    backup_vault_events = list(string)
-  }))
-  default = {}
-}
+  description = "Backup vault notifications configuration."
+  type = object({
+    sns_topic_arn       = optional(string)
+    backup_vault_events = optional(list(string))
+   })
+   default = {}
+ }
 
 variable "notifications_disable_sns_policy" {
   description = "Set true to skip creating SNS topic access policy"
@@ -216,11 +216,10 @@ variable "aws_region" {
   description = "AWS region for backup resources"
   type        = string
   default     = "us-east-1"
-
   validation {
-    condition     = var.aws_region == null || can(regex("^[a-z]{2}-[a-z]+-[0-9]$", var.aws_region))
-    error_message = "The 'aws_region' must be a valid AWS region format (e.g., us-east-1, eu-west-1)."
-  }
+    condition = can(regex("^[a-z]{2}-[a-z]+-[0-9]$", var.aws_region))
+   error_message = "The 'aws_region' must be a valid AWS region format (e.g., us-east-1, eu-west-1)."
+   }
 }
 
 variable "cloudwatch_alarms" {
