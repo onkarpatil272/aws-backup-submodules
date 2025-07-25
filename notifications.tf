@@ -27,12 +27,17 @@ resource "aws_sns_topic_policy" "sns" {
 
 # Backup Vault Notifications
 resource "aws_backup_vault_notifications" "this" {
+resource "aws_backup_vault_notifications" "this" {
   for_each = var.enabled ? var.notifications : {}
 
-  backup_vault_name   = var.vault_name != null ? var.vault_name : "Default"
+  # Allow per-notification override, else fall back to module-wide or AWS default.
+  backup_vault_name = coalesce(each.value.vault_name, var.vault_name, "Default")
   sns_topic_arn       = each.value.sns_topic_arn
   backup_vault_events = each.value.backup_vault_events
 }
+
+# If you adopt the change above, pass the same vault name into metric alarms:
+# dimensions = { BackupVaultName = coalesce(each.value.vault_name, var.vault_name, "Default") }
 resource "aws_cloudwatch_metric_alarm" "backup_failure_alarm" {
   for_each = var.enabled ? {
     for k, v in var.notifications : k => v if try(v.enabled, false)
