@@ -45,12 +45,13 @@ resource "aws_backup_vault_notifications" "this" {
 }
 
 resource "aws_cloudwatch_metric_alarm" "backup_failure_alarm" {
-for_each = var.enabled ? {
-  for k, v in var.notifications :
-  k => v if try(v.enabled, false) && contains([
-    "BACKUP_JOB", "COPY_JOB", "RESTORE_JOB", "REPLICATION_JOB"
-  ], k)
-} : {}
+  for_each = var.enabled ? {
+    for k, v in var.notifications :
+      k => v if try(v.enabled, false)
+  } : {}
+
+  # … rest of configuration …
+}
 
   alarm_name          = "Backup-${each.key}-Failures"
   comparison_operator = "GreaterThanOrEqualToThreshold"
