@@ -77,18 +77,31 @@ module "backup" {
 }
 ```
 
-## Variables
-See `variables.tf` for all available inputs. Key variables:
-- `enabled`: Enable/disable the module
-- `vault_name`: Name of the backup vault
-- `vault_tags`: Tags for the vault
-- `locked`, `min_retention_days`, `max_retention_days`, `changeable_for_days`: Vault Lock settings
-- `kms_key_arn`: KMS key for encryption
-- `iam_role_arn`: IAM role for backup
-- `plans`, `rules`, `selections`: Backup plan and selection definitions
-- `notifications`: SNS topic and event configuration
-- `cloudwatch_alarms`: Custom CloudWatch alarms
-- `tags`: Global resource tags
+## Inputs
+Below are the main input variables for this module. See `variables.tf` for full details.
+
+| Name | Type | Default | Description |
+|------|------|---------|-------------|
+| enabled | bool | true | Enable or disable the AWS Backup module |
+| vault_name | string | null | Name of the backup vault. Required if enabling the module |
+| vault_tags | map(string) | {} | Tags to apply to the backup vault |
+| locked | bool | false | Whether to enable Vault Lock configuration |
+| min_retention_days | number | null | Minimum number of days to retain backups |
+| max_retention_days | number | null | Maximum number of days to retain backups |
+| changeable_for_days | number | null | Number of days the vault lock can be changed |
+| kms_key_arn | string | null | KMS key ARN to encrypt the backup vault (optional) |
+| iam_role_arn | string | null | IAM role ARN for AWS Backup service |
+| rules | list(object) | [] | List of backup rules for legacy single-plan mode |
+| plans | list(object) | [] | List of full backup plan definitions (name, rules, selections) |
+| selections | map(object) | {} | List of backup selections (legacy mode only) |
+| default_lifecycle_cold_storage_after_days | number | 30 | Default cold storage transition time (days) |
+| default_lifecycle_delete_after_days | number | 120 | Default deletion time after backup (days) |
+| notifications | object | {} | Backup vault notifications configuration |
+| notifications_disable_sns_policy | bool | false | Set true to skip creating SNS topic access policy |
+| backup_plan_tags | map(string) | {} | Tags to apply to all backup plans |
+| aws_region | string | "us-east-1" | AWS region for backup resources |
+| cloudwatch_alarms | map(object) | {} | List of CloudWatch alarms for AWS Backup notifications |
+| tags | map(string) | {} | Base tags applied to all AWS Backup resources |
 
 ## Outputs
 See `outputs.tf` for all outputs. Key outputs:
