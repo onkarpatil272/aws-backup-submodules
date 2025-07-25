@@ -14,8 +14,8 @@ data "aws_iam_policy_document" "sns" {
       identifiers = ["backup.amazonaws.com"]
     }
 
-      resources = try(each.value.sns_topic_arn, null) != null? [each.value.sns_topic_arn]: []
-       sid       = "BackupPublishEvents"
+    resources = [each.value.sns_topic_arn]
+    sid       = "BackupPublishEvents"
   }
 }
 
@@ -45,10 +45,12 @@ resource "aws_backup_vault_notifications" "this" {
 }
 
 resource "aws_cloudwatch_metric_alarm" "backup_failure_alarm" {
- for_each = var.enabled ? {
-   for k, v in var.notifications :
-   k => v if try(v.enabled, false)
- } : {}
+for_each = var.enabled ? {
+  for k, v in var.notifications :
+  k => v if try(v.enabled, false) && contains([
+    "BACKUP_JOB", "COPY_JOB", "RESTORE_JOB", "REPLICATION_JOB"
+  ], k)
+} : {}
 
   alarm_name          = "Backup-${each.key}-Failures"
   comparison_operator = "GreaterThanOrEqualToThreshold"
