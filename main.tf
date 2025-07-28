@@ -1,3 +1,13 @@
+# Validation: error if copy_action blocks are defined but enable_copy_action is false
+resource "null_resource" "copy_action_validation" {
+  count = !local.enable_copy_action && anytrue([
+    for rule in var.rules : length(try(rule.copy_action, [])) > 0
+  ]) ? 1 : 0
+
+  provisioner "local-exec" {
+    command = "echo 'Error: copy_action blocks are defined in rules, but enable_copy_action is false. Please check your configuration.' && exit 1"
+  }
+}
 data "aws_kms_key" "backup" {
   count  = var.enabled && var.kms_key_arn == null ? 1 : 0
   key_id = "alias/aws/backup"
@@ -30,7 +40,7 @@ resource "aws_backup_plan" "backup_plan" {
     for_each = each.value.rules
     content {
       rule_name                = rule.value.rule_name
-      target_vault_name        = coalesce(var.vault_name, "Default")
+      target_vault_name        = local.should_create_vault ? var.vault_name : "Default"
       schedule                 = try(rule.value.schedule, null)
       start_window             = try(rule.value.start_window, null)
       completion_window        = try(rule.value.completion_window, null)

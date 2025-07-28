@@ -193,13 +193,15 @@ variable "default_lifecycle_delete_after_days" {
 }
 
 variable "notifications" {
-  description = "Backup vault notifications configuration."
-  type = object({
+  description = "Map of backup vault notification configurations. Keys are notification types (e.g., BACKUP_JOB)."
+  type = map(object({
+    enabled             = optional(bool)
+    vault_name          = optional(string)
     sns_topic_arn       = optional(string)
     backup_vault_events = optional(list(string))
-   })
-   default = {}
- }
+  }))
+  default = {}
+}
 
 variable "notifications_disable_sns_policy" {
   description = "Set true to skip creating SNS topic access policy"

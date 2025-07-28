@@ -1,17 +1,18 @@
 # Vault outputs
+
 output "vault_id" {
   description = "The name of the backup vault"
-  value       = try(aws_backup_vault.backup_vault[0].id, null)
+  value       = length(aws_backup_vault.backup_vault) > 0 ? aws_backup_vault.backup_vault[0].id : null
 }
 
 output "vault_arn" {
   description = "The ARN of the backup vault"
-  value       = try(aws_backup_vault.backup_vault[0].arn, null)
+  value       = length(aws_backup_vault.backup_vault) > 0 ? aws_backup_vault.backup_vault[0].arn : null
 }
 
 output "vault_recovery_points" {
   description = "The number of recovery points stored in the backup vault"
-  value       = try(aws_backup_vault.backup_vault[0].recovery_points, null)
+  value       = length(aws_backup_vault.backup_vault) > 0 ? aws_backup_vault.backup_vault[0].recovery_points : null
 }
 
 # Fixed: Reference to correct resource names

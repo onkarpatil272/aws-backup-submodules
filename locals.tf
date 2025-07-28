@@ -1,4 +1,8 @@
 locals {
+  # Validation: error if copy_action blocks are defined but enable_copy_action is false
+  copy_action_validation_error = !local.enable_copy_action && anytrue([
+    for rule in var.rules : length(try(rule.copy_action, [])) > 0
+  ]) ? "Error: 'copy_action' blocks are defined in rules, but enable_copy_action is false. Please check your configuration." : null
   # Basic flags
   should_create_vault       = var.enabled && var.vault_name != null
   should_create_lock        = local.should_create_vault && var.locked
