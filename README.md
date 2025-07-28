@@ -113,8 +113,8 @@ See `outputs.tf` for all outputs. Key outputs:
 - `backup_selection_ids`: Map of backup selection IDs
 
 ## Requirements
-- Terraform >= 1.3.0
-- AWS Provider >= 5.0
+- Terraform >= 1.5.0
+- AWS Provider >= 5.0, < 6.0
 
 ## Provider
 Configure your AWS provider in `provider.tf`:
