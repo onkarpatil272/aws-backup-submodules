@@ -10,7 +10,7 @@ variable "vault_name" {
   default     = null
 
   validation {
-    condition = var.vault_name == null || can(regex("^[a-zA-Z0-9_-]{1,50}$", var.vault_name))
+    condition     = var.vault_name == null || can(regex("^[a-zA-Z0-9_-]{1,50}$", var.vault_name))
     error_message = "'vault_name' must be 1-50 chars, alphanumeric, hyphen, underscore."
   }
 }
@@ -27,7 +27,7 @@ variable "locked" {
 
   # Only validate locked itself; cross-variable logic must be handled elsewhere
   validation {
-    condition = var.locked == false || var.locked == true
+    condition     = var.locked == false || var.locked == true
     error_message = "'locked' must be a boolean value. Additional logic must be handled in resource blocks."
   }
 }
@@ -38,7 +38,7 @@ variable "min_retention_days" {
   default     = null
 
   validation {
-    condition = var.min_retention_days == null ? true : (var.min_retention_days >= 1 && var.min_retention_days <= 36500)
+    condition     = var.min_retention_days == null ? true : (var.min_retention_days >= 1 && var.min_retention_days <= 36500)
     error_message = "min_retention_days must be between 1 and 36500 if specified."
   }
 }
@@ -49,7 +49,7 @@ variable "max_retention_days" {
   default     = null
 
   validation {
-    condition = var.max_retention_days == null ? true : (var.max_retention_days >= 1 && var.max_retention_days <= 36500)
+    condition     = var.max_retention_days == null ? true : (var.max_retention_days >= 1 && var.max_retention_days <= 36500)
     error_message = "max_retention_days must be between 1 and 36500 if specified. Additional logic must be handled in resource blocks."
   }
 }
@@ -59,7 +59,7 @@ variable "changeable_for_days" {
   default     = null
 
   validation {
-    condition = var.changeable_for_days == null ? true : (var.changeable_for_days >= 3 && var.changeable_for_days <= 36500)
+    condition     = var.changeable_for_days == null ? true : (var.changeable_for_days >= 3 && var.changeable_for_days <= 36500)
     error_message = "The 'changeable_for_days' must be between 3 and 36500 days when specified."
   }
 }
@@ -202,6 +202,12 @@ variable "notifications" {
   }))
   default = {}
 }
+variable "create_sns_topics" {
+  description = "Whether to create SNS topics for backup notifications"
+  type        = bool
+  default     = false
+}
+
 
 variable "notifications_disable_sns_policy" {
   description = "Set true to skip creating SNS topic access policy"
@@ -219,9 +225,9 @@ variable "aws_region" {
   type        = string
   default     = "us-east-1"
   validation {
-    condition = can(regex("^[a-z]{2}-[a-z]+-[0-9]$", var.aws_region))
-   error_message = "The 'aws_region' must be a valid AWS region format (e.g., us-east-1, eu-west-1)."
-   }
+    condition     = can(regex("^[a-z]{2}-[a-z]+-[0-9]$", var.aws_region))
+    error_message = "The 'aws_region' must be a valid AWS region format (e.g., us-east-1, eu-west-1)."
+  }
 }
 
 variable "cloudwatch_alarms" {

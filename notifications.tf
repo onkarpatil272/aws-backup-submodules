@@ -3,12 +3,12 @@
 data "aws_iam_policy_document" "sns" {
   for_each = var.enabled && !var.notifications_disable_sns_policy ? {
     for k, v in var.notifications :
-      k => v if try(v.enabled, false) && try(v.sns_topic_arn, null) != null
+    k => v if try(v.enabled, false) && try(v.sns_topic_arn, null) != null
   } : {}
 
   statement {
-    actions   = ["SNS:Publish"]
-    effect    = "Allow"
+    actions = ["SNS:Publish"]
+    effect  = "Allow"
 
     principals {
       type        = "Service"
@@ -20,42 +20,62 @@ data "aws_iam_policy_document" "sns" {
   }
 }
 
+resource "aws_sns_topic" "this" {
+  for_each = var.create_sns_topics ? {
+    for k, v in var.notifications :
+    k => v if try(v.enabled, false) && try(v.sns_topic_arn, null) == null
+  } : {}
+
+  name = "backup-topic-${each.key}"
+}
+
+
 # SNS Topic Policies
 resource "aws_sns_topic_policy" "sns" {
   for_each = var.enabled && !var.notifications_disable_sns_policy ? {
     for k, v in var.notifications : k => v if try(v.enabled, false)
   } : {}
 
-  arn    = each.value.sns_topic_arn
-  policy = data.aws_iam_policy_document.sns[each.key].json
-}
+  arn = local.sns_topic_arns[each.key] != null ? local.sns_topic_arns[each.key] : each.value.sns_topic_arn
 
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Principal = {
+        Service = "backup.amazonaws.com"
+      }
+      Action   = "SNS:Publish"
+      Resource = local.sns_topic_arns[each.key] != null ? local.sns_topic_arns[each.key] : each.value.sns_topic_arn
+    }]
+  })
+}
 # Backup Vault Notifications
 resource "aws_backup_vault_notifications" "this" {
   for_each = var.enabled ? {
     for k, v in var.notifications : k => v
     if try(v.enabled, false) &&
-       try(v.sns_topic_arn, null) != null &&
-       try(v.backup_vault_events, []) != []
+    try(v.sns_topic_arn, null) != null &&
+    try(v.backup_vault_events, []) != []
   } : {}
 
-  backup_vault_name     = coalesce(
+  backup_vault_name = coalesce(
     try(each.value.vault_name, null),
     var.vault_name,
     "Default"
   )
-  sns_topic_arn         = each.value.sns_topic_arn
-  backup_vault_events   = each.value.backup_vault_events
+  sns_topic_arn       = each.value.sns_topic_arn
+  backup_vault_events = each.value.backup_vault_events
 }
 
 
 resource "aws_cloudwatch_metric_alarm" "backup_failure_alarm" {
-for_each = var.enabled ? {
-  for k, v in var.notifications :
-  k => v if try(v.enabled, false) && contains([
-    "BACKUP_JOB", "COPY_JOB", "RESTORE_JOB", "REPLICATION_JOB"
-  ], k)
-} : {}
+  for_each = var.enabled ? {
+    for k, v in var.notifications :
+    k => v if try(v.enabled, false) && contains([
+      "BACKUP_JOB", "COPY_JOB", "RESTORE_JOB", "REPLICATION_JOB"
+    ], k)
+  } : {}
 
   alarm_name          = "Backup-${each.key}-Failures"
   comparison_operator = "GreaterThanOrEqualToThreshold"
@@ -69,13 +89,13 @@ for_each = var.enabled ? {
 
   alarm_actions = try(each.value.sns_topic_arn, null) != null ? [each.value.sns_topic_arn] : []
 
-dimensions = {
-  BackupVaultName = coalesce(
-    try(each.value.vault_name, null),
-    var.vault_name,
-    "Default"
-  )
-}
+  dimensions = {
+    BackupVaultName = coalesce(
+      try(each.value.vault_name, null),
+      var.vault_name,
+      "Default"
+    )
+  }
 
   lifecycle {
     precondition {

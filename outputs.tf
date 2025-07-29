@@ -83,9 +83,9 @@ output "backup_plan_ids" {
 
 output "sns_topic_arns" {
   description = "Map of SNS topic ARNs used for backup notifications"
-  value = {
-    for k, v in var.notifications : k => try(v.sns_topic_arn, null)
-  }
+  value       = local.sns_topic_arns
 }
+
+
 
 
