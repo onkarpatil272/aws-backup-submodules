@@ -72,6 +72,7 @@ resource "aws_backup_plan" "backup_plan" {
     }
   }
   tags = local.backup_plan_tags
+  depends_on = [aws_backup_vault.backup_vault]
 }
 
 resource "aws_backup_selection" "ab_selection" {
