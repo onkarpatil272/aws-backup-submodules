@@ -15,10 +15,10 @@ data "aws_kms_key" "backup" {
 
 
 resource "aws_backup_vault" "backup_vault" {
-  for_each   = local.should_create_vault ? { (var.vault_name) = var.vault_name } : {}
+  for_each    = local.should_create_vault ? { (var.vault_name) = var.vault_name } : {}
   name        = each.value
   kms_key_arn = local.kms_key_arn
-  tags = local.vault_tags
+  tags        = local.vault_tags
 }
 
 resource "aws_backup_vault_lock_configuration" "ab_vault_lock" {

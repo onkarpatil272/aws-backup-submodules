@@ -82,4 +82,10 @@ locals {
 
   backup_plan_tags = merge(local.common_tags, var.backup_plan_tags)
   vault_tags       = merge(local.common_tags, var.vault_tags)
+
+  sns_topic_arns = var.create_sns_topics && can(aws_sns_topic.this) ? {
+    for k, topic in aws_sns_topic.this : k => topic.arn
+    } : {
+    for k, config in var.notifications : k => try(config.sns_topic_arn, null)
+  }
 }
