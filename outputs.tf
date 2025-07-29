@@ -71,3 +71,21 @@ output "backup_selection_ids" {
     for k, v in aws_backup_selection.ab_selection : k => v.id
   }
 }
+output "backup_vault_arn" {
+  description = "Alias output for backup vault ARN"
+  value       = try(aws_backup_vault.backup_vault[0].arn, null)
+}
+
+output "backup_plan_ids" {
+  description = "List of backup plan IDs"
+  value       = [for plan in aws_backup_plan.backup_plan : plan.id]
+}
+
+output "sns_topic_arns" {
+  description = "Map of SNS topic ARNs used for backup notifications"
+  value = {
+    for k, v in var.notifications : k => try(v.sns_topic_arn, null)
+  }
+}
+
+
