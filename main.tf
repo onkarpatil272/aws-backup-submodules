@@ -83,7 +83,7 @@ resource "aws_backup_selection" "ab_selection" {
   plan_id      = aws_backup_plan.backup_plan[each.value.plan_key].id
 
   resources     = length(try(each.value.selection.resources, [])) > 0 ? each.value.selection.resources : null
-  not_resources = length(try(each.value.selection.not_resources, [])) > 0 ? each.value.selection.not_resources : null
+  not_resources = length(coalesce(try(each.value.selection.not_resources, []), [])) > 0 ? each.value.selection.not_resources : null
 
   dynamic "selection_tag" {
     for_each = try(each.value.selection.selection_tags, [])
