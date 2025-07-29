@@ -33,7 +33,10 @@ resource "aws_sns_topic_policy" "sns" {
 # Backup Vault Notifications
 resource "aws_backup_vault_notifications" "this" {
   for_each = var.enabled ? {
-    for k, v in var.notifications : k => v if try(v.enabled, false)
+    for k, v in var.notifications : k => v
+    if try(v.enabled, false) &&
+       try(v.sns_topic_arn, null) != null &&
+       try(v.backup_vault_events, []) != []
   } : {}
 
   backup_vault_name     = coalesce(
@@ -44,6 +47,7 @@ resource "aws_backup_vault_notifications" "this" {
   sns_topic_arn         = each.value.sns_topic_arn
   backup_vault_events   = each.value.backup_vault_events
 }
+
 
 resource "aws_cloudwatch_metric_alarm" "backup_failure_alarm" {
 for_each = var.enabled ? {
