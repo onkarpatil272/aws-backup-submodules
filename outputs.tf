@@ -54,13 +54,17 @@ output "vault_kms_key_arn" {
 }
 
 output "vault_lock_configuration" {
-  description = "The backup vault lock configuration"
-  value = var.enabled && local.should_create_lock ? {
-    min_retention_days  = aws_backup_vault_lock_configuration.ab_vault_lock[0].min_retention_days
-    max_retention_days  = aws_backup_vault_lock_configuration.ab_vault_lock[0].max_retention_days
-    changeable_for_days = aws_backup_vault_lock_configuration.ab_vault_lock[0].changeable_for_days
-  } : null
+  description = "Vault lock configuration for each backup vault"
+  value = {
+    for k, v in aws_backup_vault_lock_configuration.ab_vault_lock :
+    k => {
+      min_retention_days  = v.min_retention_days
+      max_retention_days  = v.max_retention_days
+      changeable_for_days = v.changeable_for_days
+    }
+  }
 }
+
 
 output "backup_selection_ids" {
   description = "Map of backup selection IDs"
