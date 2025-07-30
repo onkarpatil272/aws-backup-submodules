@@ -10,8 +10,8 @@ variable "vault_name" {
   default     = null
 
   validation {
-    condition = var.vault_name == null || can(regex("^[a-zA-Z0-9_-]{1,50}$", var.vault_name))
-    error_message = "'vault_name' must be 1-50 chars, alphanumeric, hyphen, underscore."
+    condition = var.vault_name == null || can(regex("^[a-zA-Z][a-zA-Z0-9_-]{0,49}$", var.vault_name))
+    error_message = "'vault_name' must be 1-50 chars, start with a letter, and contain only alphanumeric, hyphen, underscore."
   }
 }
 variable "vault_tags" {
@@ -23,12 +23,11 @@ variable "vault_tags" {
 variable "locked" {
   description = "Whether to enable Vault Lock configuration"
   type        = bool
-  default     = false
+  default     = true
 
-  # Only validate locked itself; cross-variable logic must be handled elsewhere
   validation {
     condition = var.locked == false || var.locked == true
-    error_message = "'locked' must be a boolean value. Additional logic must be handled in resource blocks."
+    error_message = "'locked' must be a boolean value."
   }
 }
 
@@ -70,18 +69,17 @@ variable "kms_key_arn" {
   default     = null
 
   validation {
-    condition     = var.kms_key_arn == null || can(regex("^arn:aws:kms:[a-z0-9-]+:[0-9]{12}:key/[a-f0-9-]{36}$", var.kms_key_arn))
-    error_message = "The 'kms_key_arn' must be a valid AWS KMS key ARN format."
+    condition     = var.kms_key_arn == null || can(regex("^arn:aws:kms:[a-z0-9-]+:[0-9]{12}:(key/[a-f0-9-]{36}|alias/[a-zA-Z0-9/_-]+)$", var.kms_key_arn))
+    error_message = "The 'kms_key_arn' must be a valid AWS KMS key ARN or alias format."
   }
 }
 
 variable "iam_role_arn" {
-  description = "IAM role ARN for AWS Backup service (optional - will create one if not provided)"
+  description = "IAM role ARN for AWS Backup service (required)"
   type        = string
-  default     = null
 
   validation {
-    condition     = var.iam_role_arn == null || can(regex("^arn:aws:iam::[0-9]{12}:role/[a-zA-Z0-9+=,.@_-]+$", var.iam_role_arn))
+    condition     = can(regex("^arn:aws:iam::[0-9]{12}:role/[a-zA-Z0-9+=,.@_-]+$", var.iam_role_arn))
     error_message = "The 'iam_role_arn' must be a valid AWS IAM role ARN format."
   }
 }
@@ -108,6 +106,15 @@ variable "rules" {
     })))
   }))
   default = []
+
+  validation {
+    condition = alltrue([
+      for rule in var.rules :
+      try(rule.start_window, null) == null || try(rule.completion_window, null) == null ||
+      (try(rule.start_window, 0) + try(rule.completion_window, 0)) >= 60
+    ])
+    error_message = "The interval between backup jobs (start_window + completion_window) must be at least 60 minutes for AWS Backup."
+  }
 }
 
 variable "plans" {
@@ -149,6 +156,17 @@ variable "plans" {
     })))
   }))
   default = []
+
+  validation {
+    condition = alltrue([
+      for plan in var.plans : alltrue([
+        for rule in plan.rules :
+        try(rule.start_window, null) == null || try(rule.completion_window, null) == null ||
+        (try(rule.start_window, 0) + try(rule.completion_window, 0)) >= 60
+      ])
+    ])
+    error_message = "The interval between backup jobs (start_window + completion_window) must be at least 60 minutes for AWS Backup."
+  }
 }
 
 variable "selections" {

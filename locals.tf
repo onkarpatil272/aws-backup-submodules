@@ -29,10 +29,11 @@ locals {
     })
   ]
 
-  # Check if any copy_action is defined
-  enable_copy_action = anytrue([
-    for rule in var.rules : length(try(rule.copy_action, [])) > 0
-  ])
+  # Check if any copy_action is defined in both rules and plans
+  enable_copy_action = anytrue(concat(
+    [for rule in var.rules : try(rule.copy_action, null) != null && try(length(rule.copy_action), 0) > 0],
+    flatten([for plan in var.plans : [for rule in plan.rules : try(rule.copy_action, null) != null && try(length(rule.copy_action), 0) > 0]])
+  ))
 
   # Legacy plan block
   legacy_plan = local.should_create_legacy_plan ? [{
@@ -54,6 +55,9 @@ locals {
     }
   }
 
+  # Get the first plan name for fallback
+  first_plan_name = length(var.plans) > 0 ? (var.plans[0].name != null ? var.plans[0].name : "plan-0") : "legacy-backup-plan"
+
   # Flatten selections into a map: plan selections + global selections
   plan_selections_map = merge(
     merge([
@@ -70,7 +74,7 @@ locals {
     var.selections != null && length(var.selections) > 0 ? {
       for sel_name, selection in var.selections :
       "default-${sel_name}" => {
-        plan_key      = try(var.plans[0].name, "legacy-backup-plan")
+        plan_key      = local.first_plan_name
         selection_key = sel_name
         selection     = selection
       }

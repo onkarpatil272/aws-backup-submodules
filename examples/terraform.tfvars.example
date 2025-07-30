@@ -1,0 +1,93 @@
+# AWS Backup Module - terraform.tfvars.example
+# Copy this file to terraform.tfvars and modify the values as needed
+
+# Basic Configuration
+enabled    = true
+vault_name = "my-backup-vault"
+aws_region = "us-east-1"
+
+# Vault Configuration
+vault_tags = {
+  Environment = "prod"
+  Project     = "backup-system"
+  Owner       = "devops-team"
+  CostCenter  = "backup"
+}
+
+# Vault Lock Configuration (optional)
+locked               = false
+min_retention_days   = null
+max_retention_days   = null
+changeable_for_days  = null
+
+# Encryption
+kms_key_arn = null # Use AWS managed key if null
+
+# IAM Role (REQUIRED)
+iam_role_arn = "arn:aws:iam::123456789012:role/AWSBackupDefaultServiceRole"
+
+# Legacy Single-Plan Mode
+rules = [
+  {
+    rule_name = "daily-backup"
+    schedule  = "cron(0 12 * * ? *)"
+    start_window = 60      # 1 hour
+    completion_window = 120 # 2 hours (total interval: 3 hours)
+    lifecycle = {
+      cold_storage_after = 30
+      delete_after       = 90
+    }
+  }
+]
+
+selections = {
+  "default" = {
+    iam_role_arn = "arn:aws:iam::123456789012:role/AWSBackupDefaultServiceRole"
+    resources    = ["arn:aws:ec2:us-east-1:123456789012:volume/vol-12345678"]
+  }
+}
+
+# Multi-Plan Mode (alternative to rules/selections above)
+plans = []
+
+# Lifecycle Defaults
+default_lifecycle_cold_storage_after_days = 30
+default_lifecycle_delete_after_days       = 120
+
+# SNS Notifications
+create_sns_topics = false
+notifications = {
+  BACKUP_JOB = {
+    enabled             = true
+    sns_topic_arn       = "arn:aws:sns:us-east-1:123456789012:backup-notifications"
+    backup_vault_events = ["BACKUP_JOB_COMPLETED", "BACKUP_JOB_FAILED"]
+  }
+}
+
+notifications_disable_sns_policy = false
+
+# CloudWatch Alarms
+cloudwatch_alarms = {
+  backup_failure = {
+    metric_name         = "BackupJobsFailed"
+    namespace           = "AWS/Backup"
+    threshold           = 1
+    comparison_operator = "GreaterThanOrEqualToThreshold"
+    evaluation_periods  = 1
+    statistic           = "Sum"
+    period              = 300
+    alarm_description   = "Backup job failure alarm"
+    sns_topic_arn       = "arn:aws:sns:us-east-1:123456789012:backup-notifications"
+  }
+}
+
+# Tags
+tags = {
+  Environment = "prod"
+  ManagedBy   = "terraform"
+  Component   = "backup"
+}
+
+backup_plan_tags = {
+  BackupType = "automated"
+} 

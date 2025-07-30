@@ -8,6 +8,25 @@ resource "null_resource" "copy_action_validation" {
     command = "echo 'Error: copy_action blocks are defined in rules, but enable_copy_action is false. Please check your configuration.' && exit 1"
   }
 }
+
+# Validation: ensure vault lock has required retention parameters
+resource "null_resource" "vault_lock_validation" {
+  count = var.locked && var.min_retention_days == null && var.max_retention_days == null ? 1 : 0
+
+  provisioner "local-exec" {
+    command = "echo 'Error: Vault lock requires at least one retention parameter (min_retention_days or max_retention_days).' && exit 1"
+  }
+}
+
+# Validation: ensure vault lock retention parameters are valid
+resource "null_resource" "vault_lock_retention_validation" {
+  count = var.locked && var.min_retention_days != null && var.max_retention_days != null && var.min_retention_days > var.max_retention_days ? 1 : 0
+
+  provisioner "local-exec" {
+    command = "echo 'Error: min_retention_days cannot be greater than max_retention_days when vault lock is enabled.' && exit 1"
+  }
+}
+
 data "aws_kms_key" "backup" {
   count  = var.enabled && var.kms_key_arn == null ? 1 : 0
   key_id = "alias/aws/backup"
@@ -28,6 +47,8 @@ resource "aws_backup_vault_lock_configuration" "ab_vault_lock" {
   min_retention_days  = var.min_retention_days
   max_retention_days  = var.max_retention_days
   changeable_for_days = var.changeable_for_days
+
+  depends_on = [aws_backup_vault.backup_vault]
 }
 
 # IAM role creation removed - assuming iam_role_arn is always provided
@@ -86,12 +107,12 @@ resource "aws_backup_selection" "ab_selection" {
   not_resources = length(coalesce(try(each.value.selection.not_resources, []), [])) > 0 ? each.value.selection.not_resources : null
 
   dynamic "selection_tag" {
-    for_each = try(each.value.selection.selection_tags, [])
+    for_each = try(each.value.selection.selection_tags, null) != null ? each.value.selection.selection_tags : []
     content {
       type  = selection_tag.value.type
       key   = selection_tag.value.key
       value = selection_tag.value.value
     }
   }
-  depends_on = [aws_backup_plan.backup_plan]
+  depends_on = [aws_backup_plan.backup_plan, aws_backup_vault.backup_vault]
 }

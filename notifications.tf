@@ -33,7 +33,7 @@ resource "aws_sns_topic" "this" {
 # SNS Topic Policies
 resource "aws_sns_topic_policy" "sns" {
   for_each = var.enabled && !var.notifications_disable_sns_policy ? {
-    for k, v in var.notifications : k => v if try(v.enabled, false)
+    for k, v in var.notifications : k => v if try(v.enabled, false) && try(local.sns_topic_arns[k], null) != null
   } : {}
 
   arn = local.sns_topic_arns[each.key]
@@ -70,7 +70,7 @@ resource "aws_backup_vault_notifications" "this" {
   )
   sns_topic_arn       = each.value.sns_topic_arn
   backup_vault_events = each.value.backup_vault_events
-  depends_on = [aws_sns_topic_policy.sns]
+  depends_on = [aws_sns_topic_policy.sns, aws_sns_topic.this]
 }
 
 
@@ -92,7 +92,7 @@ resource "aws_cloudwatch_metric_alarm" "backup_failure_alarm" {
   threshold           = 1
   alarm_description   = "Backup ${each.key} job failure alarm"
 
-  alarm_actions = try(each.value.sns_topic_arn, null) != null ? [each.value.sns_topic_arn] : []
+  alarm_actions = try(local.sns_topic_arns[each.key], null) != null ? [local.sns_topic_arns[each.key]] : []
 
   dimensions = {
     BackupVaultName = coalesce(
