@@ -83,3 +83,6 @@ output "sns_topic_arns" {
   description = "Map of SNS topic ARNs used for backup notifications"
   value       = local.sns_topic_arns
 }
+output "plan_selections_map" {
+  value = local.plan_selections_map
+}

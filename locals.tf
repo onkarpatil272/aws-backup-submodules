@@ -3,6 +3,7 @@ locals {
   copy_action_validation_error = !local.enable_copy_action && anytrue([
     for rule in var.rules : length(try(rule.copy_action, [])) > 0
   ]) ? "Error: 'copy_action' blocks are defined in rules, but enable_copy_action is false. Please check your configuration." : null
+
   # Basic flags
   should_create_vault       = var.enabled && var.vault_name != null
   should_create_lock        = local.should_create_vault && var.locked
@@ -14,6 +15,7 @@ locals {
     RESTORE_JOB     = "RestoreJobsFailed"
     REPLICATION_JOB = "ReplicationJobsFailed"
   }
+
   # Process lifecycle rules
   processed_rules = [
     for rule in var.rules : merge(rule, {
@@ -52,18 +54,28 @@ locals {
     }
   }
 
-  # Flatten selections into a map
-  plan_selections_map = merge([
-    for plan_name, plan in local.plans_map :
-    plan.selections != null ? {
-      for sel_name, selection in plan.selections :
-      "${plan_name}-${sel_name}" => {
-        plan_key      = plan_name
+  # Flatten selections into a map: plan selections + global selections
+  plan_selections_map = merge(
+    merge([
+      for plan_name, plan in local.plans_map :
+      plan.selections != null ? {
+        for sel_name, selection in plan.selections :
+        "${plan_name}-${sel_name}" => {
+          plan_key      = plan_name
+          selection_key = sel_name
+          selection     = selection
+        }
+      } : {}
+    ]...),
+    var.selections != null && length(var.selections) > 0 ? {
+      for sel_name, selection in var.selections :
+      "default-${sel_name}" => {
+        plan_key      = try(var.plans[0].name, "legacy-backup-plan")
         selection_key = sel_name
         selection     = selection
       }
     } : {}
-  ]...)
+  )
 
   # KMS key ARN fallback logic
   kms_key_arn = coalesce(
@@ -83,7 +95,7 @@ locals {
   backup_plan_tags = merge(local.common_tags, var.backup_plan_tags)
   vault_tags       = merge(local.common_tags, var.vault_tags)
 
-sns_topic_arns = {
+  sns_topic_arns = {
     for k, v in var.notifications : k => (
       try(v.sns_topic_arn, null) != null ? v.sns_topic_arn :
       try(aws_sns_topic.this[k].arn, null)

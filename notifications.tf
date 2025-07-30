@@ -36,17 +36,21 @@ resource "aws_sns_topic_policy" "sns" {
     for k, v in var.notifications : k => v if try(v.enabled, false)
   } : {}
 
-  arn    = local.sns_topic_arns[each.key]
+  arn = local.sns_topic_arns[each.key]
+
   policy = jsonencode({
     Version = "2012-10-17"
-    Statement = [{
-      Effect = "Allow"
-      Principal = {
-        Service = "backup.amazonaws.com"
+    Statement = [
+      {
+        Sid = "AllowBackupServiceToPublish"
+        Effect = "Allow"
+        Principal = {
+          Service = "backup.amazonaws.com"
+        }
+        Action = "sns:Publish"
+        Resource = local.sns_topic_arns[each.key]
       }
-      Action   = "SNS:Publish"
-      Resource = local.sns_topic_arns[each.key]
-    }]
+    ]
   })
 }
 
@@ -66,6 +70,7 @@ resource "aws_backup_vault_notifications" "this" {
   )
   sns_topic_arn       = each.value.sns_topic_arn
   backup_vault_events = each.value.backup_vault_events
+  depends_on = [aws_sns_topic_policy.sns]
 }
 
 
