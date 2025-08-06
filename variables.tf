@@ -4,73 +4,50 @@ variable "enabled" {
   default     = true
 }
 
-variable "vault_name" {
-  description = "Name of the backup vault. Required if enabling the module."
-  type        = string
-  default     = null
+variable "vaults" {
+  description = "Map of backup vault configurations. Each vault can have its own settings."
+  type = map(object({
+    name                = string
+    kms_key_arn         = optional(string)
+    tags                = optional(map(string), {})
+    locked              = optional(bool, false)
+    min_retention_days  = optional(number)
+    max_retention_days  = optional(number)
+    changeable_for_days = optional(number)
+  }))
+  default = {}
 
   validation {
-    condition = var.vault_name == null || can(regex("^[a-zA-Z][a-zA-Z0-9_-]{0,49}$", var.vault_name))
-    error_message = "'vault_name' must be 1-50 chars, start with a letter, and contain only alphanumeric, hyphen, underscore."
+    condition = alltrue([
+      for vault_name, vault_config in var.vaults : can(regex("^[a-zA-Z][a-zA-Z0-9_-]{0,49}$", vault_config.name))
+    ])
+    error_message = "Each vault name must be 1-50 chars, start with a letter, and contain only alphanumeric, hyphen, underscore."
   }
-}
-variable "vault_tags" {
-  description = "Tags to apply to the backup vault"
-  type        = map(string)
-  default     = {}
-}
-
-variable "locked" {
-  description = "Whether to enable Vault Lock configuration"
-  type        = bool
-  default     = true
 
   validation {
-    condition = var.locked == false || var.locked == true
-    error_message = "'locked' must be a boolean value."
+    condition = alltrue([
+      for vault_name, vault_config in var.vaults :
+      vault_config.kms_key_arn == null || can(regex("^arn:aws:kms:[a-z0-9-]+:[0-9]{12}:(key/[a-f0-9-]{36}|alias/[a-zA-Z0-9/_-]+)$", vault_config.kms_key_arn))
+    ])
+    error_message = "Each vault's kms_key_arn must be a valid AWS KMS key ARN or alias format."
   }
-}
-
-variable "min_retention_days" {
-  description = "Minimum number of days to retain backups"
-  type        = number
-  default     = null
 
   validation {
-    condition = var.min_retention_days == null ? true : (var.min_retention_days >= 1 && var.min_retention_days <= 36500)
-    error_message = "min_retention_days must be between 1 and 36500 if specified."
+    condition = alltrue([
+      for vault_name, vault_config in var.vaults :
+      !vault_config.locked || (vault_config.min_retention_days != null || vault_config.max_retention_days != null)
+    ])
+    error_message = "Vault lock requires at least one retention parameter (min_retention_days or max_retention_days) when locked is true."
   }
-}
-
-variable "max_retention_days" {
-  description = "Maximum number of days to retain backups"
-  type        = number
-  default     = null
 
   validation {
-    condition = var.max_retention_days == null ? true : (var.max_retention_days >= 1 && var.max_retention_days <= 36500)
-    error_message = "max_retention_days must be between 1 and 36500 if specified. Additional logic must be handled in resource blocks."
-  }
-}
-variable "changeable_for_days" {
-  description = "Number of days the vault lock can be changed"
-  type        = number
-  default     = null
-
-  validation {
-    condition = var.changeable_for_days == null ? true : (var.changeable_for_days >= 3 && var.changeable_for_days <= 36500)
-    error_message = "The 'changeable_for_days' must be between 3 and 36500 days when specified."
-  }
-}
-
-variable "kms_key_arn" {
-  description = "KMS key ARN to encrypt the backup vault (optional)"
-  type        = string
-  default     = null
-
-  validation {
-    condition     = var.kms_key_arn == null || can(regex("^arn:aws:kms:[a-z0-9-]+:[0-9]{12}:(key/[a-f0-9-]{36}|alias/[a-zA-Z0-9/_-]+)$", var.kms_key_arn))
-    error_message = "The 'kms_key_arn' must be a valid AWS KMS key ARN or alias format."
+    condition = alltrue([
+      for vault_name, vault_config in var.vaults :
+      !vault_config.locked ||
+      (vault_config.min_retention_days == null || vault_config.max_retention_days == null ||
+       vault_config.min_retention_days <= vault_config.max_retention_days)
+    ])
+    error_message = "min_retention_days cannot be greater than max_retention_days when vault lock is enabled."
   }
 }
 
@@ -226,7 +203,7 @@ variable "notifications" {
   }))
   default = {}
 }
-  
+
 variable "notifications_disable_sns_policy" {
   description = "Set true to skip creating SNS topic access policy"
   type        = bool
@@ -238,14 +215,15 @@ variable "backup_plan_tags" {
   type        = map(string)
   default     = {}
 }
+
 variable "aws_region" {
   description = "AWS region for backup resources"
   type        = string
   default     = "us-east-1"
   validation {
     condition = can(regex("^[a-z]{2}-[a-z]+-[0-9]$", var.aws_region))
-   error_message = "The 'aws_region' must be a valid AWS region format (e.g., us-east-1, eu-west-1)."
-   }
+    error_message = "The 'aws_region' must be a valid AWS region format (e.g., us-east-1, eu-west-1)."
+  }
 }
 
 variable "cloudwatch_alarms" {
@@ -263,6 +241,7 @@ variable "cloudwatch_alarms" {
   }))
   default = {}
 }
+
 variable "tags" {
   description = "Base tags applied to all AWS Backup resources"
   type        = map(string)

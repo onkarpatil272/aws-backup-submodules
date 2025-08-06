@@ -1,13 +1,15 @@
 # AWS Backup Terraform Module
 
-This Terraform module provisions AWS Backup resources, including backup vaults, plans, selections, notifications, and CloudWatch alarms. It is designed for flexible, production-grade backup management with tagging, vault lock, notification, and encryption support.
+This Terraform module provisions AWS Backup resources, including multiple backup vaults, plans, selections, notifications, and CloudWatch alarms. It is designed for flexible, production-grade backup management with tagging, vault lock, notification, and encryption support.
+
+**Multiple Vaults Support** - The module supports creating multiple backup vaults with individual configurations per vault.
 
 ---
 
 ## Features
 
-- **Backup Vaults**: Create and configure AWS Backup Vaults with optional KMS encryption and tagging.
-- **Vault Lock**: Supports Vault Lock configuration for compliance and immutability.
+- **Multiple Backup Vaults**: Create and configure multiple AWS Backup Vaults with individual KMS encryption, tags, and lock settings.
+- **Multiple Vault Locks**: Each vault can have its own lock configuration with individual retention policies.
 - **Backup Plans**: Manage backup plans and rules (legacy single-plan and multi-plan modes).
 - **Selections**: Flexible resource selection for backup plans.
 - **Notifications**: Publishes backup events to SNS and CloudWatch.
@@ -40,33 +42,67 @@ This Terraform module provisions AWS Backup resources, including backup vaults, 
 
 ## Usage
 
+### Multiple Vaults
+
 ```hcl
 module "backup" {
   source = "github.com/onkarpatil272/aws-backup-submodules"
 
-  enabled    = true
-  vault_name = "my-backup-vault"
-  vault_tags = { Environment = "prod" }
-  locked     = true
-  min_retention_days  = 30
-  max_retention_days  = 365
-  changeable_for_days = 7
-  kms_key_arn         = null # or your KMS key ARN
-  iam_role_arn        = "arn:aws:iam::123456789012:role/BackupRole" # REQUIRED
+  enabled = true
+  iam_role_arn = "arn:aws:iam::123456789012:role/BackupRole"
+
+  # Define multiple vaults with different configurations
+  vaults = {
+    production = {
+      name                = "prod-backup-vault"
+      kms_key_arn         = "arn:aws:kms:us-east-1:123456789012:key/12345678-1234-1234-1234-123456789012"
+      tags = {
+        Environment = "production"
+        Criticality = "high"
+      }
+      locked              = true
+      min_retention_days  = 90
+      max_retention_days  = 2555
+      changeable_for_days = 7
+    }
+
+    development = {
+      name                = "dev-backup-vault"
+      kms_key_arn         = null
+      tags = {
+        Environment = "development"
+        Criticality = "low"
+      }
+      locked              = false
+    }
+
+    archive = {
+      name                = "archive-backup-vault"
+      kms_key_arn         = "arn:aws:kms:us-east-1:123456789012:key/87654321-4321-4321-4321-210987654321"
+      tags = {
+        Environment = "archive"
+        BackupType  = "long-term"
+      }
+      locked              = true
+      min_retention_days  = 365
+      max_retention_days  = 3650
+      changeable_for_days = 30
+    }
+  }
 
   plans = [
     {
-      name = "daily-backup"
+      name = "daily-production-backup"
       rules = [
         {
           rule_name = "daily"
-          schedule  = "cron(0 12 * * ? *)"
+          schedule  = "cron(0 2 * * ? *)"
         }
       ]
       selections = {
-        "default" = {
+        "production-resources" = {
           iam_role_arn = "arn:aws:iam::123456789012:role/BackupRole"
-          resources    = ["arn:aws:ec2:us-east-1:123456789012:volume/vol-12345678"]
+          resources    = ["arn:aws:ec2:us-east-1:123456789012:volume/vol-prod-123"]
         }
       }
     }
@@ -77,20 +113,6 @@ module "backup" {
       enabled             = true
       sns_topic_arn       = "arn:aws:sns:us-east-1:123456789012:backup-topic"
       backup_vault_events = ["BACKUP_JOB_COMPLETED", "BACKUP_JOB_FAILED"]
-    }
-  }
-
-  cloudwatch_alarms = {
-    backup_failure = {
-      metric_name         = "BackupJobsFailed"
-      namespace           = "AWS/Backup"
-      threshold           = 1
-      comparison_operator = "GreaterThanOrEqualToThreshold"
-      evaluation_periods  = 1
-      statistic           = "Sum"
-      period              = 300
-      alarm_description   = "Backup job failure alarm"
-      sns_topic_arn       = "arn:aws:sns:us-east-1:123456789012:backup-topic"
     }
   }
 
@@ -108,13 +130,7 @@ module "backup" {
 | Name                                   | Type      | Default     | Required | Description                                                        |
 |---------------------------------------- |-----------|-------------|----------|--------------------------------------------------------------------|
 | enabled                                | bool      | true        | No       | Enable or disable the AWS Backup module                            |
-| vault_name                             | string    | null        | No       | Name of the backup vault. Required if enabling the module          |
-| vault_tags                             | map(string)| {}         | No       | Tags to apply to the backup vault                                  |
-| locked                                 | bool      | false       | No       | Whether to enable Vault Lock configuration                         |
-| min_retention_days                     | number    | null        | No       | Minimum number of days to retain backups                           |
-| max_retention_days                     | number    | null        | No       | Maximum number of days to retain backups                           |
-| changeable_for_days                    | number    | null        | No       | Number of days the vault lock can be changed                       |
-| kms_key_arn                            | string    | null        | No       | KMS key ARN to encrypt the backup vault (optional)                 |
+| vaults                                 | map(object)| {}         | No       | Map of backup vault configurations (multiple vaults)               |
 | iam_role_arn                           | string    | -           | **Yes**  | IAM role ARN for AWS Backup service                                |
 | rules                                  | list(object) | []        | No       | List of backup rules for legacy single-plan mode                   |
 | plans                                  | list(object) | []        | No       | List of full backup plan definitions (name, rules, selections)     |
@@ -129,6 +145,24 @@ module "backup" {
 | cloudwatch_alarms                      | map(object) | {}        | No       | List of CloudWatch alarms for AWS Backup notifications             |
 | tags                                   | map(string)| {}         | No       | Base tags applied to all AWS Backup resources                      |
 
+### Vault Configuration Object
+
+Each vault in the `vaults` map can have the following configuration:
+
+```hcl
+vaults = {
+  vault_key = {
+    name                = string                    # Required: Vault name
+    kms_key_arn         = optional(string)          # Optional: KMS key ARN for encryption
+    tags                = optional(map(string), {}) # Optional: Vault-specific tags
+    locked              = optional(bool, false)     # Optional: Enable vault lock
+    min_retention_days  = optional(number)          # Optional: Minimum retention days
+    max_retention_days  = optional(number)          # Optional: Maximum retention days
+    changeable_for_days = optional(number)          # Optional: Days vault lock can be changed
+  }
+}
+```
+
 See `variables.tf` for full details and validation rules.
 
 ---
@@ -137,18 +171,11 @@ See `variables.tf` for full details and validation rules.
 
 | Name                        | Description                                      |
 |-----------------------------|--------------------------------------------------|
-| vault_id                    | The name of the backup vault                     |
-| vault_arn                   | The ARN of the backup vault                      |
-| vault_recovery_points       | Number of recovery points in the backup vault    |
-| plan_id                     | The id of the backup plan                        |
-| plan_arn                    | The ARN of the backup plan                       |
-| plan_version                | Version ID of the backup plan                    |
+| vaults                      | Map of all backup vaults created                 |
 | plans                       | Map of backup plans created                      |
 | plan_role                   | The service role used by the backup plan         |
-| vault_kms_key_arn           | The KMS key used for vault encryption            |
-| vault_lock_configuration    | Vault lock configuration for each backup vault   |
+| vault_lock_configurations   | Map of vault lock configurations for all vaults |
 | backup_selection_ids        | Map of backup selection IDs                      |
-| backup_vault_arn            | Alias output for backup vault ARN                |
 | backup_plan_ids             | List of backup plan IDs                          |
 | sns_topic_arns              | Map of SNS topic ARNs used for notifications     |
 | plan_selections_map         | Map of plan selections                           |
@@ -178,6 +205,7 @@ See `version.tf` for required Terraform and provider versions.
 ## Notes
 
 - **IAM Role**: You must provide a valid IAM role ARN for AWS Backup (`iam_role_arn`).
+- **Multiple Vaults**: Use the `vaults` variable to create multiple vaults with different configurations.
 - **Vault Lock**: When `locked = true`, you must provide at least one retention parameter (`min_retention_days` or `max_retention_days`).
 - **Vault Names**: Must start with a letter and contain only alphanumeric characters, hyphens, and underscores.
 - **Backup Intervals**: The interval between backup jobs (start_window + completion_window) must be at least 60 minutes (AWS requirement).
@@ -191,6 +219,8 @@ See `version.tf` for required Terraform and provider versions.
 
 ## Recent Fixes
 
+- ✅ **Multiple Vaults Support**: Clean implementation supporting multiple backup vaults with individual configurations
+- ✅ **Multiple Vault Locks**: Each vault can have its own lock configuration with individual retention settings
 - ✅ **Required IAM Role**: `iam_role_arn` is now required to prevent runtime errors
 - ✅ **Vault Lock Validation**: Added validation for retention parameters when vault lock is enabled
 - ✅ **Copy Action Detection**: Fixed to detect copy actions in both rules and plans

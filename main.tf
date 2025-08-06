@@ -1,57 +1,28 @@
-# Validation: error if copy_action blocks are defined but enable_copy_action is false
-resource "null_resource" "copy_action_validation" {
-  count = !local.enable_copy_action && anytrue([
-    for rule in var.rules : length(try(rule.copy_action, [])) > 0
-  ]) ? 1 : 0
-
-  provisioner "local-exec" {
-    command = "echo 'Error: copy_action blocks are defined in rules, but enable_copy_action is false. Please check your configuration.' && exit 1"
-  }
-}
-
-# Validation: ensure vault lock has required retention parameters
-resource "null_resource" "vault_lock_validation" {
-  count = var.locked && var.min_retention_days == null && var.max_retention_days == null ? 1 : 0
-
-  provisioner "local-exec" {
-    command = "echo 'Error: Vault lock requires at least one retention parameter (min_retention_days or max_retention_days).' && exit 1"
-  }
-}
-
-# Validation: ensure vault lock retention parameters are valid
-resource "null_resource" "vault_lock_retention_validation" {
-  count = var.locked && var.min_retention_days != null && var.max_retention_days != null && var.min_retention_days > var.max_retention_days ? 1 : 0
-
-  provisioner "local-exec" {
-    command = "echo 'Error: min_retention_days cannot be greater than max_retention_days when vault lock is enabled.' && exit 1"
-  }
-}
-
 data "aws_kms_key" "backup" {
-  count  = var.enabled && var.kms_key_arn == null ? 1 : 0
+  count  = var.enabled && length(var.vaults) > 0 ? 1 : 0
   key_id = "alias/aws/backup"
 }
 
-
 resource "aws_backup_vault" "backup_vault" {
-  for_each    = local.should_create_vault ? { (var.vault_name) = var.vault_name } : {}
-  name        = each.value
-  kms_key_arn = local.kms_key_arn
-  tags        = local.vault_tags
+  for_each    = local.should_create_vaults ? local.vaults_map : {}
+  name        = each.value.name
+  kms_key_arn = local.vault_kms_keys[each.key]
+  tags        = each.value.tags
 }
 
 resource "aws_backup_vault_lock_configuration" "ab_vault_lock" {
-  for_each = local.should_create_lock ? { (var.vault_name) = var.vault_name } : {}
+  for_each = local.should_create_locks ? {
+    for vault_key, vault_config in local.vaults_map :
+    vault_key => vault_config if vault_config.locked
+  } : {}
 
-  backup_vault_name   = each.value
-  min_retention_days  = var.min_retention_days
-  max_retention_days  = var.max_retention_days
-  changeable_for_days = var.changeable_for_days
+  backup_vault_name   = aws_backup_vault.backup_vault[each.key].name
+  min_retention_days  = each.value.min_retention_days
+  max_retention_days  = each.value.max_retention_days
+  changeable_for_days = each.value.changeable_for_days
 
   depends_on = [aws_backup_vault.backup_vault]
 }
-
-# IAM role creation removed - assuming iam_role_arn is always provided
 
 resource "aws_backup_plan" "backup_plan" {
   for_each = var.enabled ? local.plans_map : {}
@@ -61,7 +32,7 @@ resource "aws_backup_plan" "backup_plan" {
     for_each = each.value.rules
     content {
       rule_name                = rule.value.rule_name
-      target_vault_name        = local.should_create_vault ? var.vault_name : "Default"
+      target_vault_name        = length(local.vaults_map) > 0 ? values(local.vaults_map)[0].name : "Default"
       schedule                 = try(rule.value.schedule, null)
       start_window             = try(rule.value.start_window, null)
       completion_window        = try(rule.value.completion_window, null)

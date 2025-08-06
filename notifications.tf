@@ -29,7 +29,6 @@ resource "aws_sns_topic" "this" {
   name = "backup-topic-${each.key}"
 }
 
-
 # SNS Topic Policies
 resource "aws_sns_topic_policy" "sns" {
   for_each = var.enabled && !var.notifications_disable_sns_policy ? {
@@ -65,14 +64,12 @@ resource "aws_backup_vault_notifications" "this" {
 
   backup_vault_name = coalesce(
     try(each.value.vault_name, null),
-    var.vault_name,
-    "Default"
+    length(local.vaults_map) > 0 ? values(local.vaults_map)[0].name : "Default"
   )
   sns_topic_arn       = each.value.sns_topic_arn
   backup_vault_events = each.value.backup_vault_events
   depends_on = [aws_sns_topic_policy.sns, aws_sns_topic.this]
 }
-
 
 resource "aws_cloudwatch_metric_alarm" "backup_failure_alarm" {
   for_each = var.enabled ? {
@@ -97,8 +94,7 @@ resource "aws_cloudwatch_metric_alarm" "backup_failure_alarm" {
   dimensions = {
     BackupVaultName = coalesce(
       try(each.value.vault_name, null),
-      var.vault_name,
-      "Default"
+      length(local.vaults_map) > 0 ? values(local.vaults_map)[0].name : "Default"
     )
   }
 

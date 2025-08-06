@@ -1,12 +1,13 @@
 locals {
-  # Validation: error if copy_action blocks are defined but enable_copy_action is false
-  copy_action_validation_error = !local.enable_copy_action && anytrue([
-    for rule in var.rules : length(try(rule.copy_action, [])) > 0
-  ]) ? "Error: 'copy_action' blocks are defined in rules, but enable_copy_action is false. Please check your configuration." : null
+  # Check if any copy_action is defined in both rules and plans
+  enable_copy_action = anytrue(concat(
+    [for rule in var.rules : try(rule.copy_action, null) != null && try(length(rule.copy_action), 0) > 0],
+    flatten([for plan in var.plans : [for rule in plan.rules : try(rule.copy_action, null) != null && try(length(rule.copy_action), 0) > 0]])
+  ))
 
   # Basic flags
-  should_create_vault       = var.enabled && var.vault_name != null
-  should_create_lock        = local.should_create_vault && var.locked
+  should_create_vaults      = var.enabled && length(var.vaults) > 0
+  should_create_locks       = local.should_create_vaults && anytrue([for vault in var.vaults : try(vault.locked, false)])
   should_create_legacy_plan = var.enabled && length(var.plans) == 0 && length(var.rules) > 0
 
   backup_alarm_metric_map = {
@@ -28,12 +29,6 @@ locals {
       )
     })
   ]
-
-  # Check if any copy_action is defined in both rules and plans
-  enable_copy_action = anytrue(concat(
-    [for rule in var.rules : try(rule.copy_action, null) != null && try(length(rule.copy_action), 0) > 0],
-    flatten([for plan in var.plans : [for rule in plan.rules : try(rule.copy_action, null) != null && try(length(rule.copy_action), 0) > 0]])
-  ))
 
   # Legacy plan block
   legacy_plan = local.should_create_legacy_plan ? [{
@@ -81,11 +76,28 @@ locals {
     } : {}
   )
 
-  # KMS key ARN fallback logic
-  kms_key_arn = coalesce(
-    var.kms_key_arn,
-    length(data.aws_kms_key.backup) > 0 ? data.aws_kms_key.backup[0].arn : null
-  )
+  # Process vaults with defaults and common tags
+  vaults_map = {
+    for k, v in var.vaults :
+    k => {
+      name                = v.name
+      kms_key_arn         = try(v.kms_key_arn, null)
+      tags                = merge(local.common_tags, try(v.tags, {}))
+      locked              = try(v.locked, false)
+      min_retention_days  = try(v.min_retention_days, null)
+      max_retention_days  = try(v.max_retention_days, null)
+      changeable_for_days = try(v.changeable_for_days, null)
+    }
+  }
+
+  # KMS key ARN fallback logic for each vault
+  vault_kms_keys = {
+    for vault_key, vault_config in local.vaults_map :
+    vault_key => coalesce(
+      vault_config.kms_key_arn,
+      length(data.aws_kms_key.backup) > 0 ? data.aws_kms_key.backup[0].arn : null
+    )
+  }
 
   # Tags
   common_tags = merge(
@@ -97,7 +109,6 @@ locals {
   )
 
   backup_plan_tags = merge(local.common_tags, var.backup_plan_tags)
-  vault_tags       = merge(local.common_tags, var.vault_tags)
 
   sns_topic_arns = {
     for k, v in var.notifications : k => (
